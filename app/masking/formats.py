@@ -20,10 +20,26 @@ def _mask_all(value: str, keep: str) -> str:
 #: Разделители, сохраняемые при полном маскировании (mask_style="full").
 _SEPARATORS = " .-+@(),/"
 
+#: Код страны РФ для телефона (открывается при маскировании).
+_PHONE_COUNTRY_CODE = "+7"
+#: Разделители телефона, сохраняемые при маскировании.
+_PHONE_SEPARATORS = "()- "
+#: Разделители email, сохраняемые при маскировании.
+_EMAIL_SEPARATORS = "@._-"
+#: Разделители даты, сохраняемые при маскировании.
+_DATE_SEPARATORS = "./- "
 
-def _mask_full(value: str) -> str:
-    """Полное маскирование: все значащие символы → *, разделители сохраняются."""
-    return "".join(ch if ch in _SEPARATORS else "*" for ch in value)
+
+def _mask_digits(value: str, open_positions: set[int], keep: str) -> str:
+    """Маскирует цифры, кроме открытых позиций; разделители из keep сохраняются.
+
+    Общий паттерн для паспорта/карты/ИНН: собираются индексы цифр, выбираются
+    открытые (первые/последние), остальные цифры → '*'.
+    """
+    return "".join(
+        ch if ch in keep or (ch.isdigit() and i in open_positions) else "*"
+        for i, ch in enumerate(value)
+    )
 
 
 def _mask_fio(value: str) -> str:
@@ -41,12 +57,8 @@ def _mask_passport(value: str) -> str:
     digits = [i for i, ch in enumerate(value) if ch.isdigit()]
     if len(digits) < 4:
         return _mask_all(value, " ")
-    open_first = set(digits[:2])
-    open_last = set(digits[-2:])
-    return "".join(
-        ch if not ch.isdigit() or i in open_first | open_last else "*"
-        for i, ch in enumerate(value)
-    )
+    open_positions = set(digits[:2]) | set(digits[-2:])
+    return _mask_digits(value, open_positions, " ")
 
 
 def _mask_card(value: str) -> str:
@@ -54,26 +66,22 @@ def _mask_card(value: str) -> str:
     digits = [i for i, ch in enumerate(value) if ch.isdigit()]
     if len(digits) < 4:
         return _mask_all(value, " ")
-    open_last = set(digits[-4:])
-    return "".join(
-        ch if ch == " " or (ch.isdigit() and i in open_last) else "*"
-        for i, ch in enumerate(value)
-    )
+    open_positions = set(digits[-4:])
+    return _mask_digits(value, open_positions, " ")
 
 
 def _mask_phone(value: str) -> str:
     """Телефон: '+7 900 123-45-67' → '+7 *** ***-**-**' (код страны открыт)."""
-    # Открываем '+7' (код страны) независимо от разделителя после него
-    # (пробел или '('), остальные цифры маскируем.
-    if value.startswith("+7"):
-        return "+7" + _mask_all(value[2:], "()- ")
-    return _mask_all(value, "+()- ")
+    # Открываем код страны независимо от разделителя после него (пробел или '(').
+    if value.startswith(_PHONE_COUNTRY_CODE):
+        return _PHONE_COUNTRY_CODE + _mask_all(value[len(_PHONE_COUNTRY_CODE):], _PHONE_SEPARATORS)
+    return _mask_all(value, _PHONE_SEPARATORS)
 
 
 def _mask_email(value: str) -> str:
     """Email: 'ivanov@mail.ru' → 'i****@****.ru' (первая буква + домен .ru)."""
     if "@" not in value:
-        return _mask_all(value, "@._-")
+        return _mask_all(value, _EMAIL_SEPARATORS)
     local, domain = value.split("@", 1)
     # Локальная часть: первая буква открыта, остальное → *.
     masked_local = local[0] + "*" * (len(local) - 1) if local else ""
@@ -91,11 +99,8 @@ def _mask_inn(value: str) -> str:
     digits = [i for i, ch in enumerate(value) if ch.isdigit()]
     if len(digits) < 2:
         return _mask_all(value, "")
-    open_last = set(digits[-2:])
-    return "".join(
-        ch if ch.isdigit() and i in open_last else "*"
-        for i, ch in enumerate(value)
-    )
+    open_positions = set(digits[-2:])
+    return _mask_digits(value, open_positions, "")
 
 
 def _mask_date(value: str) -> str:
@@ -107,22 +112,16 @@ def _mask_date(value: str) -> str:
     """
     digits = [i for i, ch in enumerate(value) if ch.isdigit()]
     if len(digits) < 4:
-        return _mask_all(value, "./- ")
+        return _mask_all(value, _DATE_SEPARATORS)
     # Год: 4-значная группа, если есть; иначе последняя 2-значная группа.
     year = re.search(r"\d{4}", value)
     if not year:
         year = re.search(r"\d{2}$", value)
     if year:
-        open_year = set(range(year.start(), year.end()))
-        return "".join(
-            ch if ch in "./- " or (ch.isdigit() and i in open_year) else "*"
-            for i, ch in enumerate(value)
-        )
-    open_last = set(digits[-2:])
-    return "".join(
-        ch if ch in "./- " or (ch.isdigit() and i in open_last) else "*"
-        for i, ch in enumerate(value)
-    )
+        open_positions = set(range(year.start(), year.end()))
+        return _mask_digits(value, open_positions, _DATE_SEPARATORS)
+    open_positions = set(digits[-2:])
+    return _mask_digits(value, open_positions, _DATE_SEPARATORS)
 
 
 def mask_span(value: str, type_: str, mask_style: str = "partial") -> str:
@@ -134,7 +133,7 @@ def mask_span(value: str, type_: str, mask_style: str = "partial") -> str:
       - "tokenize" — замена на плейсхолдер [TYPE].
     """
     if mask_style == "full":
-        return _mask_full(value)
+        return _mask_all(value, _SEPARATORS)
     if mask_style == "tokenize":
         return f"[{type_.upper()}]"
     if type_ == "fio":
