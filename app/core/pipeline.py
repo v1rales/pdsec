@@ -90,6 +90,11 @@ class Pipeline:
         if not self._config.is_allowed(system_id):
             return payload
 
+        # Отключённая система (enabled: false) не маскирует и не демаскирует:
+        # возвращаем payload как есть на любом шаге.
+        if not system.enabled:
+            return payload
+
         record = self._vault.get(payload_id)
 
         if record is not None:

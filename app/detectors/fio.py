@@ -55,6 +55,9 @@ _PATRONYMIC = r"[А-ЯЁ][а-яё]*(?:" + "|".join(_PATRONYMIC_SUFFIXES) + r")"
 _INITIAL = r"[А-ЯЁ]\."
 
 #: Полное ФИО: фамилия + имя + отчество (имя — широкий паттерн, отчество — якорь).
+#: IGNORECASE сохранён для регистронезависимости. Известное ограничение:
+#: строчный прогон без границы слова перед ФИО ('а'*100 + 'Иванов') может
+#: матчиться как фамилия (редкий краевой случай, компромисс с регистронезависимостью).
 _FULL_SURNAME_FIRST = re.compile(
     rf"\b({_SURNAME})\s+({_NAME_FULL})\s+({_PATRONYMIC})\b",
     re.IGNORECASE,
@@ -137,32 +140,47 @@ class FioDetector(Detector):
             for match in pattern.finditer(text):
                 if self._has_negative_context(text, match.start(), match.end()):
                     continue
-                if self._is_known_personality(match):
+                if self._is_known_personality(match, pattern):
                     continue
-                spans.append(self._span(match))
+                span = self._span(match)
+                if span is not None:
+                    spans.append(span)
         for pattern in (_INITIALS, _LATIN_NAME_SURNAME, _LATIN_SURNAME_NAME):
             for match in pattern.finditer(text):
-                spans.append(self._span(match))
+                span = self._span(match)
+                if span is not None:
+                    spans.append(span)
         for match in _NAME_SURNAME.finditer(text):
             if self._has_negative_context(text, match.start(), match.end()):
                 continue
             if not self._has_pd_context(text, match.start(), match.end()):
                 continue
-            spans.append(self._span(match))
+            span = self._span(match)
+            if span is not None:
+                spans.append(span)
         for match in _SURNAME_NAME.finditer(text):
             if self._has_negative_context(text, match.start(), match.end()):
                 continue
             if not self._has_pd_context(text, match.start(), match.end()):
                 continue
-            spans.append(self._span(match))
+            span = self._span(match)
+            if span is not None:
+                spans.append(span)
         return spans
 
     def _span(self, match: re.Match) -> Span:
+        value = match.group()
+        # Защита от катастрофического совпадения: под re.IGNORECASE строчный
+        # прогон ('а'*100 + 'Иванов') матчится как одна «фамилия» — длинный спан
+        # со строчной первой буквой. Реальные ФИО короткие и с заглавной.
+        # Отбрасываем длинные спаны (>30 символов), начинающиеся со строчной.
+        if len(value) > 30 and value[0].islower():
+            return None  # type: ignore[return-value]
         return Span(
             type=self.type,
             start=match.start(),
             end=match.end(),
-            value=match.group(),
+            value=value,
             confidence=0.9,
         )
 
@@ -173,14 +191,15 @@ class FioDetector(Detector):
         right = min(len(text), end + window)
         return _NEGATIVE_RE.search(text[left:right]) is not None
 
-    def _is_known_personality(self, match: re.Match) -> bool:
+    def _is_known_personality(self, match: re.Match, pattern: re.Pattern) -> bool:
         """Возвращает True, если фамилия в ФИО — известная личность.
 
-        Фамилия — первая группа в форме «фамилия + имя + отчество» и третья
-        в форме «имя + отчество + фамилия». Сравнение регистронезависимое
-        (флаг re.IGNORECASE).
+        Фамилия — первая группа в форме «фамилия + имя + отчество»
+        (_FULL_SURNAME_FIRST) и третья в форме «имя + отчество + фамилия»
+        (_FULL_NAME_FIRST). Сравнение регистронезависимое (флаг re.IGNORECASE).
         """
-        surname = match.group(1) or match.group(3)
+        surname_group = 1 if pattern is _FULL_SURNAME_FIRST else 3
+        surname = match.group(surname_group)
         return _KNOWN_PERSONALITIES_RE.fullmatch(surname) is not None
 
     def _has_pd_context(self, text: str, start: int, end: int,
