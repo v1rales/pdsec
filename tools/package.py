@@ -29,6 +29,12 @@ _EXCLUDE_FILES = {
     "tests/golden_set.json", "tests/score_result.json",
     # Рабочие файлы агентов — не исходный код решения.
     "AGENTS.md", "WORKLOG.md",
+    # Документы заказчика: ТЗ и критерии оценивания. В архив идёт
+    # только наше решение; собственные документы (docs/architecture.md,
+    # jury_guide.md, performance.md, limitations.md) остаются.
+    "docs/task.md",
+    "docs/критерии_оценивания.md",
+    "docs/ТЗ_Модуль_безопасности_ПД_извлечение.md",
 }
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
