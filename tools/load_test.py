@@ -119,6 +119,8 @@ async def _send_pair(
     Демаскирование: тот же payload_id + маска → исходный текст.
     record() вызывается на каждый HTTP-запрос отдельно.
     """
+    # POST идёт на /process (контракт), а не на базовый URL.
+    process_url = url.rstrip("/") + "/process"
     try:
         payload_id = str(uuid.uuid4())
 
@@ -126,7 +128,7 @@ async def _send_pair(
         start = time.perf_counter()
         try:
             resp = await client.post(
-                url,
+                process_url,
                 json={"payload": text, "payload_id": payload_id},
             )
             latency = time.perf_counter() - start
@@ -143,7 +145,7 @@ async def _send_pair(
         start = time.perf_counter()
         try:
             resp = await client.post(
-                url,
+                process_url,
                 json={"payload": mask, "payload_id": payload_id},
             )
             latency = time.perf_counter() - start
@@ -355,7 +357,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    url = args.url.rstrip("/") + "/process"
+    # Базовый URL без /process: /process добавляется только в _send_pair при POST,
+    # а _get_server_stats запрашивает /stats и /metrics на базовом URL.
+    url = args.url.rstrip("/")
     dataset = _load_dataset(args.dataset)
     if not dataset:
         print("Ошибка: датасет пуст", file=sys.stderr)
