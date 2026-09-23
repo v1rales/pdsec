@@ -17,7 +17,7 @@ _EXCLUDE_DIRS = {
     "node_modules", ".venv", "venv", "env",
     "target", "build", "dist", "out", "bin", "obj",
     ".git", ".idea", "__pycache__", ".pytest_cache", "coverage", ".work",
-    ".kilo",  # рабочие каталоги агентов и их worktree
+    ".kilo",  # служебные каталоги инструментов разработки
     "logs",   # рантайм-логи
 }
 
@@ -27,7 +27,7 @@ _EXCLUDE_FILES = {
     # Датасеты и отчёты прогонов: ТЗ §7.1 запрещает их в архиве,
     # пересоздаются через tools/gen_dataset.py и tools/score.py.
     "tests/golden_set.json", "tests/score_result.json",
-    # Рабочие файлы агентов — не исходный код решения.
+    # Внутренние рабочие заметки — не исходный код решения.
     "AGENTS.md", "WORKLOG.md",
     # Документы заказчика: ТЗ и критерии оценивания. В архив идёт
     # только наше решение; собственные документы (docs/architecture.md,
