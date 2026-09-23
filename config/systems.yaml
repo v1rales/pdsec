@@ -1,0 +1,35 @@
+# Конфигурация систем-потребителей.
+# default_system применяется, когда заголовок X-System-Id отсутствует
+# (всегда для проверяющей системы AlfaSonar).
+
+default_system: "default"
+
+# Allowlist систем, которым разрешён доступ. Система, чей id отсутствует
+# в списке, получает payload без маскирования (200, не 403).
+# default_system всегда разрешена — проверяющая система не шлёт X-System-Id.
+allowed_systems:
+  - "default"
+  - "system-a"
+  - "system-b"
+
+systems:
+  - id: "default"
+    enabled: true
+    mask_types: [all]          # маскировать все типы ПД
+    unmask_enabled: true       # демаскирование разрешено
+    mask_style: "partial"      # partial | full | tokenize
+    multi_type_rule: false     # маскировать только при нескольких типах
+
+  - id: "system-a"
+    enabled: true
+    mask_types: [fio, passport, phone, email, card]
+    unmask_enabled: true
+    mask_style: "partial"
+    multi_type_rule: false
+
+  - id: "system-b"
+    enabled: false             # доступ отключён
+    mask_types: [all]
+    unmask_enabled: false
+    mask_style: "partial"
+    multi_type_rule: false

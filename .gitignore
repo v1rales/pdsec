@@ -1,0 +1,35 @@
+# Зависимости
+node_modules/
+.venv/
+venv/
+env/
+
+# Сборка
+target/
+build/
+dist/
+out/
+bin/
+obj/
+
+# Служебные
+.git/
+.idea/
+__pycache__/
+*.pyc
+.pytest_cache/
+coverage/
+.work/
+.kilo/
+
+# Рантайм
+logs/
+
+# Рабочие файлы агентов
+AGENTS.md
+WORKLOG.md
+
+# Артефакты сборки и прогонов (пересоздаются)
+solution.zip
+tests/golden_set.json
+tests/score_result.json
